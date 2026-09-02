@@ -1,139 +1,138 @@
 # MB AL Graph Demo
 
-This extension is a small, working example of **graph engineering** for Business Central AL development.
+A free VS Code extension that demonstrates **graph engineering** for Business Central AL: three chained Copilot agents (Code, Verify, Review), a resumable `state.json` bookmark, and a real, code-enforced retry limit.
 
-Graph engineering chains several checks into fixed stations, in a fixed order. Each station has its own check. A bookmark file records the current station. A run can pause. A run can resume. It does not start over.
+This extension showcases the pattern from [graph-engineering-business-central-al](https://mbaic.github.io/2026/07/06/graph-engineering-business-central-al/) — extending the proven design from [mb-copilot-al-loop-demo](https://github.com/mbaic/mb-copilot-al-loop-demo) with a three-station graph topology and script-enforced resumability.
 
-Read the background post first: [Graph Engineering: Wiring Loops Together in AL Delivery](https://mbaic.github.io/2026/07/06/graph-engineering-business-central-al/).
+## What is it?
 
-## What this extension adds to VS Code
+Three custom Copilot agents running in sequence:
 
-This extension adds five things to Copilot Chat:
+1. **Code** — Edits AL objects to satisfy a requirement. Writes the bookmark.
+2. **Verify** — Compiles the project and reads diagnostics. Attempts capped at 3 per session by a workspace hook.
+3. **Review** — Checks the diff against the requirement. Read-only; approves or sends back to Code.
 
-1. **Three custom agents.** `al-graph-code`, `al-graph-verify`, `al-graph-review`. Each agent runs one station.
-2. **A slash command**, `/al-graph-start`. Type this command to start the Code station.
-3. **Handoff buttons.** Each agent ends its turn with a button. The button hands off to the next agent, with a pre-filled prompt. You click the button. No agent moves to the next station on its own.
-4. **A bookmark file**, `state.json`. It records which station finished, and the result. You can stop a run and resume it later at the correct station, instead of redoing finished work.
-5. **A hard attempt limit.** The Verify station tries the build 3 times. On the 4th try, a script blocks the build tool and stops the run. The limit is code, not a request to the model.
+Each transition between stations is a manual handoff (a button click), so a human is always in control. When Verify hits an error, you click to send it back to Code with the error text pre-filled. When Review finds a gap, the same loop resumes from Code.
 
-This extension does not add a new AI model. It does not add a new compiler. It uses the tools that the AL Language extension already gives to Copilot: `al_build` and `al_getdiagnostics`. This extension adds the graph around them, and one enforcement script.
+## Installation
 
-## Before you start
+1. Download the latest `.vsix` from [Releases](https://github.com/mbaic/mb-copilot-al-graph-demo/releases).
+2. In VS Code, run **Extensions: Install from VSIX** and select the file.
+3. Open an AL project workspace.
 
-You need:
-
-- Visual Studio Code, a recent version. Custom agents, handoffs, and hooks are **Preview** features. Update VS Code if you do not see the behavior this README describes.
-- The **AL Language** extension, version 17.0 or later.
-- **GitHub Copilot Chat**, installed and signed in.
-- An AL project open in VS Code, with `app.json` at its root.
-- Copilot Chat set to **Agent** mode.
-
-You do not need Node.js, npm, or any build tool to use this extension. You only need these tools if you want to change the extension and repackage it.
-
-## Install
-
-1. Go to the [Releases](../../releases) page of this repository.
-2. Download the file `mb-al-graph-demo-<version>.vsix`.
-3. Open VS Code.
-4. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS) to open the Command Palette.
-5. Type **Extensions: Install from VSIX** and press Enter.
-6. Select the downloaded `.vsix` file.
-7. Reload VS Code if it asks you to.
-8. **Copy the attempt-limit hook into your AL project.** This step is required. See the next section.
+## First use
 
 ### Copy the hook into your project
 
-VS Code documents one confirmed location for a hook file: a `.github/hooks/` folder inside your own open workspace. An installed extension has no confirmed way to register a hook by itself, so this extension cannot do this step for you.
+The extension includes workspace hooks that enforce the attempt limit. Copy them into your AL project:
 
-Do this once, for each AL project where you want the attempt limit to apply:
+```bash
+cp -r .github/hooks <your-al-project>/.github/
+```
 
-1. Open this repository on GitHub, in the `.github/hooks/` folder.
-2. Download `hooks.json`, `al-graph-limit.sh`, and `al-graph-limit.ps1`.
-3. In your AL project, create a folder named `.github/hooks/` at the project root, if it does not already exist.
-4. Copy the three files into that folder. Keep the file names exactly as they are.
+On Windows, you can do this manually: copy the `.github/hooks/` folder from this repo into your AL project's `.github/` folder.
 
-If your AL project already has a `.github/hooks/` folder from another tool, add these three files to it. Do not replace files you do not recognize.
+### Start the graph
 
-## Try it
+1. Open the Copilot Chat panel (**Ctrl+Shift+I** / **Cmd+Shift+I**).
+2. Type `/al-graph-start` and describe your requirement: *"Add a new field to the Item table."*
 
-1. Open an AL project with the hook copied in as described above.
-2. Open Copilot Chat.
-3. Type this command and press Enter:
+The Code agent runs, edits your files, then offers a handoff button to Verify.
 
-   ```
-   /al-graph-start add a Discount % decimal field to table extension Sales Line Ext, expose it on page extension Sales Line Page Ext, and add a ValidateDiscountPct procedure that errors outside 0-100
-   ```
+### Verify and Review
 
-4. The Code agent writes the field, the page exposure, and the validation procedure.
-5. Copilot shows a button: **Send to Verify**. Read the diff first. Click the button when you are ready.
-6. The Verify agent builds the project and reads the diagnostics. It reports pass or fail. On a fail, it offers a **Send back to Code** button with the error pre-filled. This can happen up to 3 times. On the 4th try, the hook blocks the build and the run stops on its own.
-7. On a pass, Copilot shows a button: **Send to Review**. Click it.
-8. The Review agent compares the diff against your original request. It reports "approved," or it lists what is missing. Review never edits a file.
-9. On approval, Review tells you the change is ready. **You still do the last step by hand:** open Source Control, read every line of the diff, and commit and push it yourself.
+Click the button (or type `@al-graph-verify`) to move to Verify. It compiles the project. If it builds:
+- You see a "Send to Review" button.
+- Click it (or `@al-graph-review`) for the Review agent to check the diff.
 
-Stop the run at any point. Close VS Code. Open it again later. Check `state.json` at the root of your project. It names the last finished station. Start your next prompt at that station instead of from Code.
+If the build fails, you get:
+- The error from the diagnostic tool.
+- A "Send back to Code" button with the error text pre-filled.
+- Click it to loop back and fix the issue.
 
-## What is inside this repository
+Once Review approves, you're ready to commit the change and open a pull request.
 
-| File | Purpose |
-|------|---------|
-| `agents/al-graph-code.agent.md` | The Code station. Writes or edits AL objects for one small change. |
-| `agents/al-graph-verify.agent.md` | The Verify station. Builds the project and reads diagnostics. No edit tool. |
-| `agents/al-graph-review.agent.md` | The Review station. Checks the diff against the requirement. No edit tool. |
-| `prompts/al-graph-start.prompt.md` | The `/al-graph-start` slash command. |
-| `.github/hooks/hooks.json` | Registers the attempt-limit script. Copy this folder into your own AL project. |
-| `.github/hooks/al-graph-limit.sh` | The attempt-limit script, for macOS and Linux. |
-| `.github/hooks/al-graph-limit.ps1` | The attempt-limit script, for Windows. |
-| `package.json` | The extension manifest. Contributes the three agents and the prompt. No compiled code. |
+## State and resumability
 
-## How the attempt limit works
+The graph writes and reads `state.json` at your workspace root:
 
-Before the Verify agent runs the AL build tool, VS Code runs the script you copied into `.github/hooks/al-graph-limit.sh` (or `.ps1` on Windows). The script does four things:
+```json
+{
+  "node": "code | verify | review",
+  "result": null,
+  "attempt": 0,
+  "limit": 3,
+  "commit": null,
+  "updated": "2026-09-02T12:00:00Z"
+}
+```
 
-1. It checks whether the current tool call is a build.
-2. If it is, the script adds 1 to a counter for this chat session.
-3. If the counter is 3 or lower, the script allows the build, and writes the attempt number and station name to `state.json`.
-4. If the counter is higher than 3, the script blocks the build, writes "blocked" to `state.json`, and tells the agent why.
+- **`node`**: Which station last ran.
+- **`attempt` / `limit`**: Managed by the workspace hook (Verify only).
+- **`result`**: `pending`, `pass`, `fail`, or `blocked`.
+- **`commit`**: You fill this in by hand after committing (e.g., `"abc123"`).
+- **`updated`**: ISO 8601 timestamp of the last change.
 
-This means the limit holds even if the model ignores its own instructions. The block happens in the script, not in the model's judgment.
+If you interrupt the graph and come back later, each agent checks the state and can skip ahead or resume from where it stopped.
 
-The Code and Review stations write their own part of `state.json` using their own edit permission and their own instructions. This part is a prompt-level rule, not a script-enforced one. Trust it the same way you trust the "never commit" rule below: normally reliable, not a hard guarantee. The one hard guarantee in this extension is the Verify attempt limit.
+## What this extension does NOT do
 
-## What this demo does not do
-
-This demo matches the scope of the background post. It does not go further:
-
-- It handles **one small change** at a time. It does not run several changes in parallel. The background post rules this out on purpose.
-- Verify checks the **compiler only**. It does not run test codeunits. The loop-engineering demo this graph builds on has the same limit, for the same reason: keep the demo small.
-- It does not cap Review rejections at a fixed number. Only the Verify-to-Code cycle has a script-enforced limit, matching the background post's "up to three tries" language, which applies to Verify only.
-- It does not add a cost cap. The background post names a cost cap as a future step. This demo does not add one: VS Code hooks give no documented way to read token cost, so a cost cap here would be a guess dressed up as a feature.
-- It **never merges a pull request.** It never publishes to Business Central. Review approval means the change is ready for a human. It does not mean the change is live.
-- Nothing in this extension touches a live Business Central tenant. All three stations run on your local project files.
+- **No auto-commit.** You review and commit by hand, like a real workflow.
+- **No cost cap.** Cost tracking is future work; the attempt limit is code-enforced, a cost cap is not yet.
+- **No Review retry cap.** The post specifies three tries for Verify only. Review loops back on request, with no hard limit.
+- **No publish or merge.** No agent touches your remote repo or tenant. "Approved" means "ready for a human," and nothing more.
 
 ## Troubleshooting
 
-**The `/al-graph-start` command does not appear.**
-Confirm the extension is installed and enabled. Open the Command Palette and run **Chat: Open Customizations** to see all loaded agents and prompts.
+### Handoff buttons don't appear
 
-**A handoff button does not appear at the end of a turn.**
-Handoffs are a newer Preview feature than the loop-engineering demo used. Update VS Code. If the button still does not appear, ask the agent by name instead: type `@al-graph-verify` (or `@al-graph-review`) and describe what to do, using the same wording the handoff prompt would have used.
+Type the agent name directly: `@al-graph-verify`, `@al-graph-review`, or `@al-graph-code`.
 
-**The attempt limit does not stop the agent after 3 tries.**
-Confirm you completed "Copy the hook into your project" above. A hook bundled inside an installed extension is not confirmed to load on its own; the `.github/hooks/` folder in your own workspace is the one confirmed location. Run **Developer: Show Agent Debug Logs** and look for `al-graph-limit`. Some organizations turn off agent hooks by policy. Ask your VS Code administrator if this applies to you.
+### The hook doesn't fire
 
-**`state.json` looks wrong or out of date.**
-The Verify station's part of the file is script-written and should always be accurate. The Code and Review stations' parts are agent-written, by instruction. If an agent skips this step, edit the file by hand: it is plain JSON.
+- Confirm `.github/hooks/` exists in your AL project.
+- Check that the hook files have execute permissions (`chmod +x .github/hooks/al-graph-limit.sh` on macOS/Linux).
+- On Windows, ensure PowerShell's execution policy allows the script (`-ExecutionPolicy Bypass`).
 
-**Copilot cannot find `al_build` or `al_getdiagnostics`.**
-Update the AL Language extension to version 17.0 or later. These tools ship with the AL extension, not with this demo.
+### Attempt limit reached, but I need more tries
 
-## Background reading
+Edit `.github/hooks/hooks.json` and change the `LIMIT=3` value in both `.sh` and `.ps1` scripts. The limit is enforced locally in your workspace hook, not by the extension.
 
-- [Graph Engineering: Wiring Loops Together in AL Delivery](https://mbaic.github.io/2026/07/06/graph-engineering-business-central-al/) — the concept this extension demonstrates.
-- [Loop Engineering: Give Your AL Copilot a Repeat Button](https://mbaic.github.io/2026/07/03/loop-engineering-business-central-al/) — the single-station pattern this graph chains together.
-- [The AL Coding Harness: Your Custom Dashboard](https://mbaic.github.io/2026/06/29/small-agent-harness-business-central-al/) — background on custom agents and instructions for AL.
-- [mb-copilot-al-loop-demo](https://github.com/mbaic/mb-copilot-al-loop-demo) — the loop-engineering demo this graph builds on. The Verify station's attempt-limit script follows the same design as that demo's hook.
+### state.json ends up in the wrong place
+
+The hook tries to write to the workspace root (`.`). If that resolves somewhere unexpected, check your VS Code workspace settings and confirm the workspace folder path is correct.
+
+## Development and testing
+
+Build the extension:
+
+```bash
+npm install -g @vscode/vsce
+vsce package
+```
+
+Install the `.vsix` via **Extensions: Install from VSIX** and test against a real AL project with the hook copied in.
+
+### Test checklist
+
+1. Confirm all three agents load in Copilot Chat customizations.
+2. Run `/al-graph-start` with a small, intentional error (reference a nonexistent field).
+3. Verify that Code edits only AL files and creates `state.json`.
+4. Trigger 4 consecutive failing builds to confirm the hook blocks the 4th attempt.
+5. Try to trick Review into editing a file (it should refuse).
+
+## Known limitations
+
+- This design has never been end-to-end tested in a real VS Code install. Treat it as structurally plausible and more carefully grounded than its predecessor, but still functionally unverified until you run it.
+- The `tools: ['search']` limit on Review has not been independently confirmed. Before you rely on it as a safety boundary, test that Review genuinely cannot edit files.
+- Multiple agents in one extension add their descriptions to every chat session, used or not — a known VS Code behavior noted in the linked blog post.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT — same as [mb-copilot-al-loop-demo](https://github.com/mbaic/mb-copilot-al-loop-demo).
+
+## See also
+
+- [Graph Engineering for Business Central AL](https://mbaic.github.io/2026/07/06/graph-engineering-business-central-al/) — the blog post behind this design.
+- [mb-copilot-al-loop-demo](https://github.com/mbaic/mb-copilot-al-loop-demo) — the loop-engineering predecessor.
+- [mb-al-ai-toolkit](https://github.com/mbaic/mb-al-ai-toolkit) — related AL/Copilot tooling.
