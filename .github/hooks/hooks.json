@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "./.github/hooks/al-graph-limit.sh",
+        "windows": "powershell -ExecutionPolicy Bypass -File .github\\hooks\\al-graph-limit.ps1",
+        "timeout": 10
+      }
+    ]
+  }
+}

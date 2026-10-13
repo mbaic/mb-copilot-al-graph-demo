@@ -1,0 +1,42 @@
+{
+  "name": "mb-al-graph-demo",
+  "displayName": "MB AL Graph Demo",
+  "description": "A minimal VS Code extension that demonstrates graph engineering for Business Central AL: three chained Copilot agents (Code, Verify, Review) with a resumable state.json bookmark and an attempt limit enforced by a hook that you copy into your AL project.",
+  "version": "0.1.0",
+  "publisher": "mbaic",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mbaic/mb-copilot-al-graph-demo.git"
+  },
+  "keywords": [
+    "business-central",
+    "al",
+    "copilot",
+    "agent",
+    "graph-engineering",
+    "ai"
+  ],
+  "categories": [
+    "AI"
+  ],
+  "contributes": {
+    "chatAgents": [
+      { "path": "./agents/al-graph-code.agent.md" },
+      { "path": "./agents/al-graph-verify.agent.md" },
+      { "path": "./agents/al-graph-review.agent.md" }
+    ],
+    "chatPromptFiles": [
+      { "path": "./prompts/al-graph-start.prompt.md" }
+    ]
+  },
+  "scripts": {
+    "vsce:package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  }
+}

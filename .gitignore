@@ -1,0 +1,20 @@
+# Extension packaging
+*.vsix
+
+# Dependencies
+node_modules/
+npm-debug.log
+package-lock.json
+
+# OS and IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode-test/
+.vscode/
+
+# Environment
+.env
+.env.local
