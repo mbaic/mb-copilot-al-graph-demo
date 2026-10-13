@@ -1,7 +1,7 @@
 {
   "name": "mb-al-graph-demo",
   "displayName": "MB AL Graph Demo",
-  "description": "A minimal VS Code extension that demonstrates graph engineering for Business Central AL: three chained Copilot agents (Code, Verify, Review) with a resumable state.json bookmark and a real, code-enforced retry limit.",
+  "description": "A minimal VS Code extension that demonstrates graph engineering for Business Central AL: three chained Copilot agents (Code, Verify, Review) with a resumable state.json bookmark and an attempt limit enforced by a hook that you copy into your AL project.",
   "version": "0.1.0",
   "publisher": "mbaic",
   "license": "MIT",
