@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — 2026-11-06
 
 - MB AL Graph Demo extension for Business Central AL
 - Three chained custom agents: al-graph-code, al-graph-verify, al-graph-review

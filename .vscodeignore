@@ -1,0 +1,5 @@
+.github/**
+.gitignore
+node_modules/**
+*.vsix
+release-notes.md

@@ -19,63 +19,64 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
 
       - name: Get version
         id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           if [[ "${{ github.event_name }}" == "push" ]]; then
-            VERSION="${{ github.ref }}"
-            VERSION="${VERSION#refs/tags/v}"
+            VERSION="${GITHUB_REF_NAME#v}"
           else
-            VERSION="${{ github.event.inputs.version }}"
+            VERSION="${INPUT_VERSION#v}"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version '$VERSION' (expected semver like 0.2.0)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "vsix=mb-al-graph-demo-$VERSION.vsix" >> "$GITHUB_OUTPUT"
 
-      - name: Update package.json version
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+      # Stamp the release version into package.json so the VSIX manifest matches the tag.
+      # --allow-same-version: package.json may already carry this version.
+      - name: Set package.json version
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Package extension
-        run: npx vsce package --out mb-al-graph-demo-${{ steps.version.outputs.version }}.vsix
+        run: npx vsce package --out "${{ steps.version.outputs.vsix }}"
 
       - name: Generate release notes
-        id: notes
         run: |
-          {
-            echo "release_body<<EOF"
-            grep -A 50 "## ${{ steps.version.outputs.version }}" CHANGELOG.md | head -20 || echo "See CHANGELOG.md for details."
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          # Take the CHANGELOG section for this version (up to the next "## " heading).
+          awk -v v="## ${{ steps.version.outputs.version }}" \
+            'index($0, v) == 1 {f=1; next} /^## / && f {exit} f' CHANGELOG.md > release-notes.md
+          if [[ ! -s release-notes.md ]]; then
+            echo "See CHANGELOG.md for details." > release-notes.md
+          fi
+          cat release-notes.md
 
-      - name: Create release
-        uses: actions/create-release@v1
+      - name: Create GitHub release with VSIX
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          release_name: "MB AL Graph Demo ${{ steps.version.outputs.version }}"
-          body: ${{ steps.notes.outputs.release_body }}
-          draft: false
-          prerelease: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.vsix }}" \
+            --title "MB AL Graph Demo ${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA"
 
-      - name: Upload extension to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload VSIX as workflow artifact
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./mb-al-graph-demo-${{ steps.version.outputs.version }}.vsix
-          asset_name: mb-al-graph-demo-${{ steps.version.outputs.version }}.vsix
-          asset_content_type: application/zip
+          name: ${{ steps.version.outputs.vsix }}
+          path: ${{ steps.version.outputs.vsix }}
